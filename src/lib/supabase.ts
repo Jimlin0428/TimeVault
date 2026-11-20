@@ -68,7 +68,7 @@ export const SUPABASE_SQL_SCHEMA = `-- PMBA Hub - Supabase 資料表與 Row-Leve
 -- 請在 Supabase Dashboard -> SQL Editor 貼上並執行 (Run)
 
 create table if not exists public.courses (
-  id uuid primary key default gen_random_uuid(),
+  id text primary key,
   name text not null,
   code text not null,
   course_type text not null default 'required' check (course_type in ('required', 'elective')),
@@ -76,21 +76,21 @@ create table if not exists public.courses (
   term_info text not null default '',
   color text not null default 'indigo',
   is_shared boolean not null default true,
-  owner_id uuid references auth.users(id) on delete cascade,
+  owner_id text,
   created_at timestamptz not null default now()
 );
 
 -- 選修課名單關係表 (Course Enrollments)
 create table if not exists public.course_enrollments (
-  user_id uuid not null references auth.users(id) on delete cascade,
-  course_id uuid not null references public.courses(id) on delete cascade,
+  user_id text not null,
+  course_id text not null references public.courses(id) on delete cascade,
   enrolled_at timestamptz not null default now(),
   primary key (user_id, course_id)
 );
 
 create table if not exists public.academic_events (
-  id uuid primary key default gen_random_uuid(),
-  course_id uuid references public.courses(id) on delete set null,
+  id text primary key default gen_random_uuid()::text,
+  course_id text references public.courses(id) on delete set null,
   title text not null,
   category text not null check (category in ('class', 'assignment', 'exam', 'discussion')),
   due_at timestamptz not null,
@@ -98,15 +98,15 @@ create table if not exists public.academic_events (
   description text not null default '',
   is_shared boolean not null default true,
   is_pinned_countdown boolean not null default true,
-  owner_id uuid references auth.users(id) on delete cascade,
+  owner_id text,
   owner_name text not null default 'PMBA 同學',
   created_at timestamptz not null default now()
 );
 
 create table if not exists public.user_event_progress (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  event_id uuid not null references public.academic_events(id) on delete cascade,
+  id text primary key default gen_random_uuid()::text,
+  user_id text not null,
+  event_id text not null references public.academic_events(id) on delete cascade,
   status text not null default 'todo' check (status in ('todo', 'in_progress', 'done')),
   personal_memo text not null default '',
   updated_at timestamptz not null default now(),
@@ -114,10 +114,10 @@ create table if not exists public.user_event_progress (
 );
 
 create table if not exists public.personal_notes (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  course_id uuid references public.courses(id) on delete set null,
-  event_id uuid references public.academic_events(id) on delete set null,
+  id text primary key default gen_random_uuid()::text,
+  user_id text not null,
+  course_id text references public.courses(id) on delete set null,
+  event_id text references public.academic_events(id) on delete set null,
   title text not null,
   content text not null default '',
   tags text[] not null default '{}',
@@ -132,25 +132,30 @@ alter table public.academic_events enable row level security;
 alter table public.user_event_progress enable row level security;
 alter table public.personal_notes enable row level security;
 
+-- Course enrollments
 create policy "Enrollments visible to all" on public.course_enrollments for select using (true);
-create policy "Users manage own enrollments" on public.course_enrollments for all using (auth.uid() = user_id);
+create policy "Users manage own enrollments" on public.course_enrollments for all using (auth.uid()::text = user_id or auth.role() = 'anon');
 
-create policy "Courses visible if shared or owned" on public.courses for select using (is_shared = true or auth.uid() = owner_id);
-create policy "Users insert courses" on public.courses for insert with check (auth.uid() = owner_id);
-create policy "Users update shared or owned courses" on public.courses for update using (is_shared = true or auth.uid() = owner_id);
-create policy "Users delete owned courses" on public.courses for delete using (auth.uid() = owner_id);
+-- Courses
+create policy "Courses visible if shared or owned" on public.courses for select using (is_shared = true or auth.uid()::text = owner_id or auth.role() = 'anon');
+create policy "Users insert courses" on public.courses for insert with check (auth.uid()::text = owner_id or auth.role() = 'anon');
+create policy "Users update shared or owned courses" on public.courses for update using (is_shared = true or auth.uid()::text = owner_id or auth.role() = 'anon');
+create policy "Users delete owned courses" on public.courses for delete using (auth.uid()::text = owner_id or auth.role() = 'anon');
 
-create policy "Events visible if shared or owned" on public.academic_events for select using (is_shared = true or auth.uid() = owner_id);
-create policy "Users insert events" on public.academic_events for insert with check (auth.uid() = owner_id);
-create policy "Users update shared or owned events" on public.academic_events for update using (is_shared = true or auth.uid() = owner_id);
-create policy "Users delete owned events" on public.academic_events for delete using (auth.uid() = owner_id);
+-- Academic events
+create policy "Events visible if shared or owned" on public.academic_events for select using (is_shared = true or auth.uid()::text = owner_id or auth.role() = 'anon');
+create policy "Users insert events" on public.academic_events for insert with check (auth.uid()::text = owner_id or auth.role() = 'anon');
+create policy "Users update shared or owned events" on public.academic_events for update using (is_shared = true or auth.uid()::text = owner_id or auth.role() = 'anon');
+create policy "Users delete owned events" on public.academic_events for delete using (auth.uid()::text = owner_id or auth.role() = 'anon');
 
-create policy "Users only see own progress" on public.user_event_progress for select using (auth.uid() = user_id);
-create policy "Users only insert own progress" on public.user_event_progress for insert with check (auth.uid() = user_id);
-create policy "Users only update own progress" on public.user_event_progress for update using (auth.uid() = user_id);
-create policy "Users only delete own progress" on public.user_event_progress for delete using (auth.uid() = user_id);
+-- User event progress (private)
+create policy "Users only see own progress" on public.user_event_progress for select using (auth.uid()::text = user_id);
+create policy "Users only insert own progress" on public.user_event_progress for insert with check (auth.uid()::text = user_id);
+create policy "Users only update own progress" on public.user_event_progress for update using (auth.uid()::text = user_id);
+create policy "Users only delete own progress" on public.user_event_progress for delete using (auth.uid()::text = user_id);
 
-create policy "Users only see own notes" on public.personal_notes for select using (auth.uid() = user_id);
-create policy "Users only insert own notes" on public.personal_notes for insert with check (auth.uid() = user_id);
-create policy "Users only update own notes" on public.personal_notes for update using (auth.uid() = user_id);
-create policy "Users only delete own notes" on public.personal_notes for delete using (auth.uid() = user_id);`;
+-- Personal notes (private)
+create policy "Users only see own notes" on public.personal_notes for select using (auth.uid()::text = user_id);
+create policy "Users only insert own notes" on public.personal_notes for insert with check (auth.uid()::text = user_id);
+create policy "Users only update own notes" on public.personal_notes for update using (auth.uid()::text = user_id);
+create policy "Users only delete own notes" on public.personal_notes for delete using (auth.uid()::text = user_id);`;
