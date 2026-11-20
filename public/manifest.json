@@ -1,0 +1,16 @@
+{
+  "name": "PMBA Hub 學習與時程管理中心",
+  "short_name": "PMBA Hub",
+  "description": "專為 PMBA 學員設計的課程、作業、考試、討論、倒數計時與私人雲端記事本",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
