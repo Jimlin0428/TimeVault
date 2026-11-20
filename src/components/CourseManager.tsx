@@ -51,6 +51,7 @@ interface CourseManagerProps {
   onOpenNewEventForCourse: (courseId: string) => void;
   onOpenImportModal: () => void;
   onSyncAllToCloud?: () => void;
+  isAdmin: boolean;
 }
 
 const COLOR_OPTIONS: { value: CourseColor; label: string; dot: string }[] = [
@@ -76,6 +77,7 @@ export default function CourseManager({
   onOpenNewEventForCourse,
   onOpenImportModal,
   onSyncAllToCloud,
+  isAdmin,
 }: CourseManagerProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
@@ -153,47 +155,56 @@ export default function CourseManager({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {onSyncAllToCloud && (
-            <button
-              onClick={onSyncAllToCloud}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold shadow-sm transition"
-              title="將目前所有課程與時程發布至雲端資料庫，讓全班及其他裝置即刻同步"
-            >
-              <Cloud className="w-4 h-4" />
-              同步發布至全班雲端
-            </button>
+          {isAdmin ? (
+            <>
+              {onSyncAllToCloud && (
+                <button
+                  onClick={onSyncAllToCloud}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold shadow-sm transition"
+                  title="將目前所有課程與時程發布至雲端資料庫，讓全班及其他裝置即刻同步"
+                >
+                  <Cloud className="w-4 h-4" />
+                  同步發布至全班雲端
+                </button>
+              )}
+
+              <button
+                onClick={onOpenImportModal}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs sm:text-sm font-bold shadow-sm transition"
+              >
+                <Download className="w-4 h-4 text-indigo-600" />
+                一鍵匯入台大 PMBA 課表
+              </button>
+
+              <button
+                onClick={() => {
+                  setEditingCourse(null);
+                  setName('');
+                  setCode('PMBA-710');
+                  setCourseType('elective');
+                  setProfessor('');
+                  setTermInfo('');
+                  setColor('indigo');
+                  setIsShared(true);
+                  setShowAddForm((prev) => !prev);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-semibold shadow-sm transition"
+              >
+                <Plus className="w-4 h-4" />
+                自訂新課程
+              </button>
+            </>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 border border-slate-200 text-xs font-semibold">
+              <Lock className="w-3.5 h-3.5 text-slate-500" />
+              公版課表由班代 / 管理者統一維護
+            </span>
           )}
-
-          <button
-            onClick={onOpenImportModal}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs sm:text-sm font-bold shadow-sm transition"
-          >
-            <Download className="w-4 h-4 text-indigo-600" />
-            一鍵匯入台大 PMBA 課表
-          </button>
-
-          <button
-            onClick={() => {
-              setEditingCourse(null);
-              setName('');
-              setCode('PMBA-710');
-              setCourseType('elective');
-              setProfessor('');
-              setTermInfo('');
-              setColor('indigo');
-              setIsShared(true);
-              setShowAddForm((prev) => !prev);
-            }}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-semibold shadow-sm transition"
-          >
-            <Plus className="w-4 h-4" />
-            自訂新課程
-          </button>
         </div>
       </div>
 
       {/* Add Course Form */}
-      {showAddForm && (
+      {isAdmin && showAddForm && (
         <form
           onSubmit={handleSubmit}
           className="bg-white rounded-2xl border-2 border-indigo-500/80 shadow-md p-5 space-y-4"
@@ -448,30 +459,32 @@ export default function CourseManager({
                     </h3>
                   </div>
 
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleStartEditCourse(course)}
-                      title="編輯此課程"
-                      className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `確定要刪除課程「${course.name}」嗎？相關時程仍會保留或需要手動調整。`
-                          )
-                        ) {
-                          onDeleteCourse(course.id);
-                        }
-                      }}
-                      title="刪除此課程"
-                      className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  {isAdmin && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleStartEditCourse(course)}
+                        title="編輯此課程"
+                        className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              `確定要刪除課程「${course.name}」嗎？相關時程仍會保留或需要手動調整。`
+                            )
+                          ) {
+                            onDeleteCourse(course.id);
+                          }
+                        }}
+                        title="刪除此課程"
+                        className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Course Metadata (Flexible without fixed room/time) */}

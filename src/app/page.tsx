@@ -225,6 +225,13 @@ export default function PMBAHubPage() {
     adminEmails,
   ]);
 
+  // Strict admin check: ONLY authenticated users whose email is in adminEmails
+  const isAdmin = useMemo(() => {
+    if (!supabaseUser?.email) return false;
+    const emailLower = supabaseUser.email.trim().toLowerCase();
+    return adminEmails.some((e) => e.trim().toLowerCase() === emailLower);
+  }, [supabaseUser, adminEmails]);
+
   // Load from localStorage on initial mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -799,6 +806,17 @@ export default function PMBAHubPage() {
   };
 
   const handleDeleteEvent = async (eventId: string) => {
+    const target = events.find((e) => e.id === eventId);
+    if (
+      target &&
+      target.is_shared &&
+      !target.group_name &&
+      !isAdmin &&
+      (!supabaseUser || target.owner_id !== supabaseUser.id)
+    ) {
+      alert('⚠️ 公版課堂與班級行程僅限班代 / 管理者可以刪除。');
+      return;
+    }
     setEvents((prev) => prev.filter((e) => e.id !== eventId));
     const client = getSupabaseClient();
     if (client && supabaseUser) {
@@ -807,6 +825,15 @@ export default function PMBAHubPage() {
   };
 
   const handleUpdateEvent = async (updatedEvt: AcademicEvent) => {
+    if (
+      updatedEvt.is_shared &&
+      !updatedEvt.group_name &&
+      !isAdmin &&
+      (!supabaseUser || updatedEvt.owner_id !== supabaseUser.id)
+    ) {
+      alert('⚠️ 公版課堂與班級行程僅限班代 / 管理者可以編輯。');
+      return;
+    }
     setEvents((prev) =>
       prev.map((e) => (e.id === updatedEvt.id ? updatedEvt : e))
     );
@@ -953,6 +980,10 @@ export default function PMBAHubPage() {
     color: CourseColor;
     is_shared: boolean;
   }) => {
+    if (!isAdmin) {
+      alert('⚠️ 僅限班代 / 管理者可以新增或管理公版課程。');
+      return;
+    }
     const newCourse: Course = {
       id: `course-${Date.now()}`,
       ...courseData,
@@ -998,6 +1029,10 @@ export default function PMBAHubPage() {
     importedCourses: Course[],
     importedEvents: AcademicEvent[]
   ) => {
+    if (!isAdmin) {
+      alert('⚠️ 僅限班代 / 管理者可以匯入台大官方課表。');
+      return;
+    }
     // Merge courses (avoid duplicate course names)
     setCourses((prev) => {
       const existingNames = new Set(prev.map((c) => c.name));
@@ -1072,6 +1107,10 @@ export default function PMBAHubPage() {
   };
 
   const handleDeleteCourse = async (courseId: string) => {
+    if (!isAdmin) {
+      alert('⚠️ 僅限班代 / 管理者可以刪除公版課程。');
+      return;
+    }
     setCourses((prev) => prev.filter((c) => c.id !== courseId));
     setEnrollments((prev) => prev.filter((e) => e.course_id !== courseId));
     const client = getSupabaseClient();
@@ -1081,6 +1120,10 @@ export default function PMBAHubPage() {
   };
 
   const handleUpdateCourse = async (updatedCourse: Course) => {
+    if (!isAdmin) {
+      alert('⚠️ 僅限班代 / 管理者可以編輯公版課程。');
+      return;
+    }
     setCourses((prev) =>
       prev.map((c) => (c.id === updatedCourse.id ? updatedCourse : c))
     );
@@ -1104,6 +1147,10 @@ export default function PMBAHubPage() {
 
   // Full manual sync of all local courses & events to Supabase cloud
   const handleSyncAllToCloud = async () => {
+    if (!isAdmin) {
+      alert('⚠️ 僅限班代 / 管理者可以發布課表至全班雲端。');
+      return;
+    }
     const client = getSupabaseClient();
     if (!client) {
       alert('請先在右上角確認 Supabase 連線設定！');
@@ -1424,13 +1471,15 @@ export default function PMBAHubPage() {
               </span>
             </button>
 
-            <button
-              onClick={() => setIsImportModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 text-xs font-bold shadow-sm transition"
-            >
-              <Download className="w-4 h-4 text-indigo-600" />
-              <span>台大官方課表</span>
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setIsImportModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 text-xs font-bold shadow-sm transition"
+              >
+                <Download className="w-4 h-4 text-indigo-600" />
+                <span>台大官方課表</span>
+              </button>
+            )}
 
             {supabaseUser ? (
               <button
@@ -1668,7 +1717,8 @@ export default function PMBAHubPage() {
               openNewEventModal({ courseId: cId })
             }
             onOpenImportModal={() => setIsImportModalOpen(true)}
-            onSyncAllToCloud={handleSyncAllToCloud}
+            onSyncAllToCloud={isAdmin ? handleSyncAllToCloud : undefined}
+            isAdmin={isAdmin}
           />
         )}
       </main>
