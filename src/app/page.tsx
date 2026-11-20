@@ -44,6 +44,7 @@ import {
   Filter,
   GraduationCap,
   Lock,
+  LogIn,
   Plus,
   RotateCcw,
   Share2,
@@ -201,11 +202,12 @@ export default function PMBAHubPage() {
         ? { ...(base.courseGroups || {}), ...userCourseGroups, ...rosterCourseGroups }
         : { ...(base.courseGroups || {}), ...rosterCourseGroups, ...userCourseGroups };
 
+    const isGuest = !supabaseUser;
     return {
       ...base,
-      name: customUserName || base.name,
-      roleLabel: isDemoAdmin ? 'PMBA 班代' : base.roleLabel,
-      avatarColor: isDemoAdmin ? 'bg-amber-600' : base.avatarColor,
+      name: customUserName || (isGuest ? '訪客學員 (未登入)' : base.name),
+      roleLabel: isGuest ? '訪客瀏覽' : (isDemoAdmin ? 'PMBA 班代' : base.roleLabel),
+      avatarColor: isGuest ? 'bg-slate-600' : (isDemoAdmin ? 'bg-amber-600' : base.avatarColor),
       groupName:
         isGroupLocked && matchedMembers.length > 0
           ? rosterDefaultGroup
@@ -1126,64 +1128,30 @@ export default function PMBAHubPage() {
             </span>
           </div>
 
-          {/* Interactive Account Perspective Switcher */}
+          {/* Top Authentication Status Banner */}
           {!supabaseUser ? (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-slate-400 flex items-center gap-1">
-                <Users className="w-3.5 h-3.5 text-indigo-400" />
-                目前登入者（點選切換）：
-              </span>
-              {DEMO_USERS.map((u, idx) => (
-                <button
-                  key={u.id}
-                  onClick={() => {
-                    setCustomUserGroupName(null);
-                    setCustomUserName(null);
-                    setUserCourseGroups(u.courseGroups || {});
-                    setDemoUserIndex(idx);
-                  }}
-                  className={`px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1.5 ${
-                    demoUserIndex === idx
-                      ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-white/20'
-                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                  }`}
-                  title={`${u.name} (所屬小組：${u.groupName})`}
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      demoUserIndex === idx ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'
-                    }`}
-                  />
-                  <span>{u.name}</span>
-                  <span className="text-[10px] text-indigo-200 bg-slate-900/70 px-1.5 py-0.2 rounded font-normal">
-                    {u.groupName}
-                  </span>
-                </button>
-              ))}
-
-              <div className="flex items-center gap-1.5 pl-2 border-l border-slate-700">
-                <button
-                  onClick={handleClearAllSampleData}
-                  title="清空範例事項與筆記，建立全新空白課表"
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/30 transition text-xs font-semibold"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  清空範例
-                </button>
-                <button
-                  onClick={handleResetToDemoData}
-                  title="恢復預設示範資料"
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700 transition text-xs font-semibold"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  重設範例
-                </button>
+            <div className="flex flex-wrap items-center justify-between gap-2 w-full">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30 text-xs">
+                  ⚠️ 訪客預覽模式 (尚未登入)
+                </span>
+                <span className="text-slate-300 text-xs hidden md:inline">
+                  您目前正在檢視全班公版課表與死線。登入個人 Email 即可啟用跨裝置打勾與專屬筆記！
+                </span>
               </div>
+              <button
+                onClick={() => setIsCloudModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition shadow-sm"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                點此登入 / 註冊個人帳號
+              </button>
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <span className="text-emerald-400 font-semibold">
-                ● Supabase 雲端已連線 ({supabaseUser.email})
+              <span className="text-emerald-400 font-semibold text-xs flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                Supabase 雲端已連線 ({supabaseUser.email})
               </span>
             </div>
           )}
@@ -1203,9 +1171,15 @@ export default function PMBAHubPage() {
                 <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
                   PMBA Hub
                 </h1>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  {currentUser.name}
-                </span>
+                {supabaseUser ? (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    {currentUser.name}
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-500 border border-slate-200">
+                    訪客預覽
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500 hidden sm:block">
                 PMBA 課程・行事曆・作業考試倒數・個人私密雲端記事
@@ -1294,17 +1268,23 @@ export default function PMBAHubPage() {
               <span>台大官方課表</span>
             </button>
 
-            <button
-              onClick={() => setIsCloudModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-sm transition"
-            >
-              {supabaseConfig.isConfigured ? (
+            {supabaseUser ? (
+              <button
+                onClick={() => setIsCloudModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50/80 hover:bg-emerald-100 text-emerald-800 text-xs font-bold shadow-sm transition"
+              >
                 <Cloud className="w-4 h-4 text-emerald-600" />
-              ) : (
-                <Share2 className="w-4 h-4 text-indigo-600" />
-              )}
-              <span className="hidden sm:inline">分享 / 雲端同步</span>
-            </button>
+                <span className="hidden sm:inline">雲端同步設定</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsCloudModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md hover:shadow-indigo-500/20 transition"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>學員登入 / 註冊</span>
+              </button>
+            )}
 
             <button
               onClick={() => openNewEventModal()}

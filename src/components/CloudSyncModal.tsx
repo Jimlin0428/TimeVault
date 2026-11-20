@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   getSupabaseClient,
   getSupabaseConfig,
@@ -28,6 +28,7 @@ interface CloudSyncModalProps {
   onClose: () => void;
   supabaseUserEmail: string | null;
   onSupabaseConfigChanged: () => void;
+  initialTab?: 'share' | 'cloud' | 'sql';
 }
 
 export default function CloudSyncModal({
@@ -35,9 +36,23 @@ export default function CloudSyncModal({
   onClose,
   supabaseUserEmail,
   onSupabaseConfigChanged,
+  initialTab,
 }: CloudSyncModalProps) {
   const currentConfig = getSupabaseConfig();
-  const [activeTab, setActiveTab] = useState<'share' | 'cloud' | 'sql'>('share');
+  const [activeTab, setActiveTab] = useState<'share' | 'cloud' | 'sql'>(
+    initialTab || (supabaseUserEmail ? 'share' : 'cloud')
+  );
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialTab) {
+        setActiveTab(initialTab);
+      } else if (!supabaseUserEmail) {
+        setActiveTab('cloud');
+      }
+    }
+  }, [isOpen, initialTab, supabaseUserEmail]);
+
   const [showAdvancedConfig, setShowAdvancedConfig] = useState(!currentConfig.isConfigured);
   const [urlInput, setUrlInput] = useState(currentConfig.url);
   const [anonKeyInput, setAnonKeyInput] = useState(currentConfig.anonKey);

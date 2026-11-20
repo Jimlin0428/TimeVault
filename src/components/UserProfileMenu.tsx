@@ -9,6 +9,7 @@ import {
   Edit2,
   GraduationCap,
   KeyRound,
+  LogIn,
   LogOut,
   ShieldCheck,
   Sparkles,
@@ -88,22 +89,28 @@ export default function UserProfileMenu({
       >
         <div
           className={`w-7 h-7 rounded-xl ${
-            currentUser.avatarColor || 'bg-indigo-600'
+            supabaseUserEmail
+              ? (currentUser.avatarColor || 'bg-indigo-600')
+              : 'bg-slate-600'
           } text-white font-extrabold flex items-center justify-center text-xs shadow-sm ring-2 ring-white`}
         >
-          {initialLetter}
+          {supabaseUserEmail ? initialLetter : '客'}
         </div>
 
         <div className="text-left hidden sm:block">
           <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5 leading-tight">
-            <span className="truncate max-w-[110px]">{currentUser.name}</span>
+            <span className="truncate max-w-[110px]">
+              {supabaseUserEmail ? currentUser.name : '訪客 (未登入)'}
+            </span>
             <span
-              className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"
-              title="已登入"
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                supabaseUserEmail ? 'bg-emerald-500' : 'bg-amber-400'
+              }`}
+              title={supabaseUserEmail ? '已登入雲端帳號' : '訪客未登入'}
             />
           </div>
           <div className="text-[10px] text-slate-400 font-medium leading-tight mt-0.5">
-            {currentUser.groupName || '第 3 組'}
+            {supabaseUserEmail ? (currentUser.groupName || '第 3 組') : '點此登入帳號'}
           </div>
         </div>
 
@@ -130,25 +137,37 @@ export default function UserProfileMenu({
             <div className="flex items-start gap-3">
               <div
                 className={`w-12 h-12 rounded-2xl ${
-                  currentUser.avatarColor || 'bg-indigo-600'
+                  supabaseUserEmail
+                    ? (currentUser.avatarColor || 'bg-indigo-600')
+                    : 'bg-slate-700'
                 } text-white font-black flex items-center justify-center text-lg shadow-lg ring-2 ring-white/20 shrink-0`}
               >
-                {initialLetter}
+                {supabaseUserEmail ? initialLetter : '訪'}
               </div>
 
               <div className="flex-1 min-w-0 pr-4">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30 inline-flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    目前登入者
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold border inline-flex items-center gap-1 ${
+                      supabaseUserEmail
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                        : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        supabaseUserEmail ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                      }`}
+                    />
+                    {supabaseUserEmail ? '目前登入者' : '訪客預覽模式'}
                   </span>
                   {supabaseUserEmail ? (
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 font-medium">
                       雲端連線
                     </span>
                   ) : (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 font-medium">
-                      本機學員模式
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-medium">
+                      尚未登入個人信箱
                     </span>
                   )}
                 </div>
