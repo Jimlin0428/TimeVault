@@ -245,7 +245,17 @@ export default function PMBAHubPage() {
         const savedAdminEmails = window.localStorage.getItem(LS_ADMIN_EMAILS);
         const savedAdminPin = window.localStorage.getItem(LS_ADMIN_PIN);
 
-        if (savedCourses) setCourses(JSON.parse(savedCourses));
+        if (savedCourses) {
+          const parsedCourses = JSON.parse(savedCourses);
+          if (Array.isArray(parsedCourses)) {
+            setCourses(
+              parsedCourses.map((c: Record<string, unknown>) => ({
+                ...(c as unknown as Course),
+                type: (c.type || c.course_type || 'required') as CourseType,
+              }))
+            );
+          }
+        }
         if (savedEnrollments) setEnrollments(JSON.parse(savedEnrollments));
         if (savedEvents) setEvents(JSON.parse(savedEvents));
         if (savedProgress) setProgressList(JSON.parse(savedProgress));
@@ -371,7 +381,21 @@ export default function PMBAHubPage() {
       ]);
 
       if (coursesRes.data && coursesRes.data.length > 0) {
-        setCourses(coursesRes.data as Course[]);
+        const mappedCourses: Course[] = coursesRes.data.map(
+          (row: Record<string, unknown>) => ({
+            id: String(row.id),
+            name: String(row.name || ''),
+            code: String(row.code || ''),
+            type: (row.course_type || row.type || 'required') as CourseType,
+            professor: String(row.professor || ''),
+            term_info: String(row.term_info || ''),
+            color: (row.color || 'indigo') as CourseColor,
+            is_shared: Boolean(row.is_shared ?? true),
+            owner_id: String(row.owner_id || ''),
+            created_at: row.created_at ? String(row.created_at) : undefined,
+          })
+        );
+        setCourses(mappedCourses);
       }
       if (enrollRes.data && enrollRes.data.length > 0) {
         setEnrollments(enrollRes.data as CourseEnrollment[]);
