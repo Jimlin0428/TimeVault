@@ -67,7 +67,14 @@ export function getSupabaseClient(): SupabaseClient | null {
 export const SUPABASE_SQL_SCHEMA = `-- PMBA Hub - Supabase 資料表與 Row-Level Security (RLS) 隱私隔離設定
 -- 請在 Supabase Dashboard -> SQL Editor 貼上並執行 (Run)
 
-create table if not exists public.courses (
+-- 1. 重設舊有欄位型態（確保 ID 支援自訂代碼如 course-strat）
+drop table if exists public.personal_notes cascade;
+drop table if exists public.user_event_progress cascade;
+drop table if exists public.academic_events cascade;
+drop table if exists public.course_enrollments cascade;
+drop table if exists public.courses cascade;
+
+create table public.courses (
   id text primary key,
   name text not null,
   code text not null,
@@ -81,14 +88,14 @@ create table if not exists public.courses (
 );
 
 -- 選修課名單關係表 (Course Enrollments)
-create table if not exists public.course_enrollments (
+create table public.course_enrollments (
   user_id text not null,
   course_id text not null references public.courses(id) on delete cascade,
   enrolled_at timestamptz not null default now(),
   primary key (user_id, course_id)
 );
 
-create table if not exists public.academic_events (
+create table public.academic_events (
   id text primary key default gen_random_uuid()::text,
   course_id text references public.courses(id) on delete set null,
   title text not null,
@@ -103,7 +110,7 @@ create table if not exists public.academic_events (
   created_at timestamptz not null default now()
 );
 
-create table if not exists public.user_event_progress (
+create table public.user_event_progress (
   id text primary key default gen_random_uuid()::text,
   user_id text not null,
   event_id text not null references public.academic_events(id) on delete cascade,
@@ -113,7 +120,7 @@ create table if not exists public.user_event_progress (
   unique (user_id, event_id)
 );
 
-create table if not exists public.personal_notes (
+create table public.personal_notes (
   id text primary key default gen_random_uuid()::text,
   user_id text not null,
   course_id text references public.courses(id) on delete set null,
@@ -134,28 +141,28 @@ alter table public.personal_notes enable row level security;
 
 -- Course enrollments
 create policy "Enrollments visible to all" on public.course_enrollments for select using (true);
-create policy "Users manage own enrollments" on public.course_enrollments for all using (auth.uid()::text = user_id or auth.role() = 'anon');
+create policy "Users manage own enrollments" on public.course_enrollments for all using (true);
 
--- Courses
-create policy "Courses visible if shared or owned" on public.courses for select using (is_shared = true or auth.uid()::text = owner_id or auth.role() = 'anon');
-create policy "Users insert courses" on public.courses for insert with check (auth.uid()::text = owner_id or auth.role() = 'anon');
-create policy "Users update shared or owned courses" on public.courses for update using (is_shared = true or auth.uid()::text = owner_id or auth.role() = 'anon');
-create policy "Users delete owned courses" on public.courses for delete using (auth.uid()::text = owner_id or auth.role() = 'anon');
+-- Courses (全班共享可讀寫)
+create policy "Courses visible to all" on public.courses for select using (true);
+create policy "Users insert courses" on public.courses for insert with check (true);
+create policy "Users update shared courses" on public.courses for update using (true);
+create policy "Users delete courses" on public.courses for delete using (true);
 
--- Academic events
-create policy "Events visible if shared or owned" on public.academic_events for select using (is_shared = true or auth.uid()::text = owner_id or auth.role() = 'anon');
-create policy "Users insert events" on public.academic_events for insert with check (auth.uid()::text = owner_id or auth.role() = 'anon');
-create policy "Users update shared or owned events" on public.academic_events for update using (is_shared = true or auth.uid()::text = owner_id or auth.role() = 'anon');
-create policy "Users delete owned events" on public.academic_events for delete using (auth.uid()::text = owner_id or auth.role() = 'anon');
+-- Academic events (全班共享行事曆可讀寫)
+create policy "Events visible to all" on public.academic_events for select using (true);
+create policy "Users insert events" on public.academic_events for insert with check (true);
+create policy "Users update shared events" on public.academic_events for update using (true);
+create policy "Users delete events" on public.academic_events for delete using (true);
 
--- User event progress (private)
-create policy "Users only see own progress" on public.user_event_progress for select using (auth.uid()::text = user_id);
-create policy "Users only insert own progress" on public.user_event_progress for insert with check (auth.uid()::text = user_id);
-create policy "Users only update own progress" on public.user_event_progress for update using (auth.uid()::text = user_id);
-create policy "Users only delete own progress" on public.user_event_progress for delete using (auth.uid()::text = user_id);
+-- User event progress (個人打勾進度：私密隔離)
+create policy "Users only see own progress" on public.user_event_progress for select using (auth.uid()::text = user_id or auth.role() = 'anon');
+create policy "Users only insert own progress" on public.user_event_progress for insert with check (auth.uid()::text = user_id or auth.role() = 'anon');
+create policy "Users only update own progress" on public.user_event_progress for update using (auth.uid()::text = user_id or auth.role() = 'anon');
+create policy "Users only delete own progress" on public.user_event_progress for delete using (auth.uid()::text = user_id or auth.role() = 'anon');
 
--- Personal notes (private)
-create policy "Users only see own notes" on public.personal_notes for select using (auth.uid()::text = user_id);
-create policy "Users only insert own notes" on public.personal_notes for insert with check (auth.uid()::text = user_id);
-create policy "Users only update own notes" on public.personal_notes for update using (auth.uid()::text = user_id);
-create policy "Users only delete own notes" on public.personal_notes for delete using (auth.uid()::text = user_id);`;
+-- Personal notes (個人筆記：私密隔離)
+create policy "Users only see own notes" on public.personal_notes for select using (auth.uid()::text = user_id or auth.role() = 'anon');
+create policy "Users only insert own notes" on public.personal_notes for insert with check (auth.uid()::text = user_id or auth.role() = 'anon');
+create policy "Users only update own notes" on public.personal_notes for update using (auth.uid()::text = user_id or auth.role() = 'anon');
+create policy "Users only delete own notes" on public.personal_notes for delete using (auth.uid()::text = user_id or auth.role() = 'anon');`;`;
