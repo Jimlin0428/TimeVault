@@ -165,4 +165,4 @@ create policy "Users only delete own progress" on public.user_event_progress for
 create policy "Users only see own notes" on public.personal_notes for select using (auth.uid()::text = user_id or auth.role() = 'anon');
 create policy "Users only insert own notes" on public.personal_notes for insert with check (auth.uid()::text = user_id or auth.role() = 'anon');
 create policy "Users only update own notes" on public.personal_notes for update using (auth.uid()::text = user_id or auth.role() = 'anon');
-create policy "Users only delete own notes" on public.personal_notes for delete using (auth.uid()::text = user_id or auth.role() = 'anon');`;`;
+create policy "Users only delete own notes" on public.personal_notes for delete using (auth.uid()::text = user_id or auth.role() = 'anon');`;
