@@ -379,6 +379,9 @@ export default function PMBAHubPage() {
       }
       if (eventsRes.data && eventsRes.data.length > 0) {
         setEvents(eventsRes.data as AcademicEvent[]);
+      } else if (coursesRes.data && coursesRes.data.length > 0) {
+        // Real cloud courses exist, clear the outdated local mock events
+        setEvents([]);
       }
     } catch (err) {
       console.error('Failed to fetch public Supabase data:', err);
