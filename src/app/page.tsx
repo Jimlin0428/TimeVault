@@ -84,9 +84,8 @@ export default function PMBAHubPage() {
   const [events, setEvents] = useState<AcademicEvent[]>(() =>
     createInitialEvents()
   );
-  const [progressList, setProgressList] =
-    useState<UserEventProgress[]>(INITIAL_PROGRESS);
-  const [notes, setNotes] = useState<PersonalNote[]>(INITIAL_NOTES);
+  const [progressList, setProgressList] = useState<UserEventProgress[]>([]);
+  const [notes, setNotes] = useState<PersonalNote[]>([]);
   const [groupMembers, setGroupMembers] =
     useState<GroupMember[]>(INITIAL_GROUP_MEMBERS);
   const [customUserGroupName, setCustomUserGroupName] = useState<string | null>(
@@ -392,6 +391,8 @@ export default function PMBAHubPage() {
     const user = authData?.user;
     if (!user) {
       setSupabaseUser(null);
+      setNotes([]);
+      setProgressList([]);
       return;
     }
 
@@ -1006,33 +1007,43 @@ export default function PMBAHubPage() {
     // Upsert to Supabase
     const client = getSupabaseClient();
     if (client) {
-      const coursePayload = importedCourses.map((c) => ({
-        id: c.id,
-        name: c.name,
-        code: c.code,
-        course_type: c.type,
-        professor: c.professor,
-        term_info: c.term_info || '',
-        color: c.color,
-        is_shared: true,
-        owner_id: supabaseUser?.id || currentUser.id,
-      }));
-      await client.from('courses').upsert(coursePayload);
+      try {
+        const coursePayload = importedCourses.map((c) => ({
+          id: c.id,
+          name: c.name,
+          code: c.code,
+          course_type: c.type,
+          professor: c.professor,
+          term_info: c.term_info || '',
+          color: c.color,
+          is_shared: true,
+          owner_id: supabaseUser?.id || currentUser.id,
+        }));
+        await client.from('courses').upsert(coursePayload);
 
-      const eventPayload = importedEvents.map((e) => ({
-        id: e.id,
-        course_id: e.course_id,
-        title: e.title,
-        category: e.category,
-        due_at: e.due_at,
-        location: e.location || '',
-        description: e.description || '',
-        is_shared: true,
-        is_pinned_countdown: e.is_pinned_countdown ?? true,
-        owner_id: supabaseUser?.id || currentUser.id,
-        owner_name: currentUser.name,
-      }));
-      await client.from('academic_events').upsert(eventPayload);
+        const validCourseIds = new Set([
+          ...courses.map((c) => c.id),
+          ...importedCourses.map((c) => c.id),
+        ]);
+
+        const eventPayload = importedEvents.map((e) => ({
+          id: e.id,
+          course_id:
+            e.course_id && validCourseIds.has(e.course_id) ? e.course_id : null,
+          title: e.title,
+          category: e.category,
+          due_at: e.due_at,
+          location: e.location || '',
+          description: e.description || '',
+          is_shared: true,
+          is_pinned_countdown: e.is_pinned_countdown ?? false,
+          owner_id: supabaseUser?.id || currentUser.id,
+          owner_name: currentUser.name,
+        }));
+        await client.from('academic_events').upsert(eventPayload);
+      } catch (err) {
+        console.error('Failed to upsert imported schedule to Supabase:', err);
+      }
     }
   };
 
@@ -1088,19 +1099,23 @@ export default function PMBAHubPage() {
       }));
       await client.from('courses').upsert(coursePayload);
 
-      const eventPayload = events.map((e) => ({
-        id: e.id,
-        course_id: e.course_id,
-        title: e.title,
-        category: e.category,
-        due_at: e.due_at,
-        location: e.location || '',
-        description: e.description || '',
-        is_shared: e.is_shared ?? true,
-        is_pinned_countdown: e.is_pinned_countdown ?? true,
-        owner_id: e.owner_id || supabaseUser?.id || currentUser.id,
-        owner_name: e.owner_name || currentUser.name,
-      }));
+      const validCourseIds = new Set(courses.map((c) => c.id));
+      const eventPayload = events
+        .filter((e) => !e.course_id || validCourseIds.has(e.course_id))
+        .map((e) => ({
+          id: e.id,
+          course_id:
+            e.course_id && validCourseIds.has(e.course_id) ? e.course_id : null,
+          title: e.title,
+          category: e.category,
+          due_at: e.due_at,
+          location: e.location || '',
+          description: e.description || '',
+          is_shared: e.is_shared ?? true,
+          is_pinned_countdown: e.is_pinned_countdown ?? false,
+          owner_id: e.owner_id || supabaseUser?.id || currentUser.id,
+          owner_name: e.owner_name || currentUser.name,
+        }));
       await client.from('academic_events').upsert(eventPayload);
 
       alert('✅ 已將目前畫面上的所有課程與行程完整發布至 Supabase 雲端！\n現在用無痕視窗、手機或給同學看，都能即時看到最新課表了！');

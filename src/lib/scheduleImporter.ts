@@ -7,6 +7,7 @@ export interface RawCourseEntry {
   hours?: number;
   classroom?: string;
   classType?: string;
+  isCancelled?: boolean;
 }
 
 export interface RawScheduleDay {
@@ -153,6 +154,7 @@ export function getAvailableCoursesForFilter(options: {
 
   filteredDays.forEach((dayItem) => {
     dayItem.courses.forEach((c) => {
+      if (c.isCancelled) return;
       const rawName = c.name.trim();
       const classroom = (c.classroom || '').trim();
       const ct = (c.classType || '').trim();
@@ -244,6 +246,7 @@ export function extractCoursesAndEventsFromSchedule(options: {
     );
 
     dayItem.courses.forEach((c) => {
+      if (c.isCancelled) return;
       const rawName = c.name.trim();
       const classroom = (c.classroom || '').trim();
       const ct = (c.classType || '').trim();
