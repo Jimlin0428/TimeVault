@@ -349,7 +349,7 @@ export default function PMBAHubPage() {
     }
   }, [courseGroupPasscodes, hydrated]);
 
-  // Sync with Supabase if configured and logged in
+  // Sync with Supabase (public courses/events for everyone; private data for logged-in user)
   const syncWithSupabase = useCallback(async () => {
     const client = getSupabaseClient();
     if (!client) {
@@ -357,6 +357,34 @@ export default function PMBAHubPage() {
       return;
     }
 
+    // 1. Always fetch public courses and shared events (allows Incognito & guests to see latest data)
+    try {
+      const [coursesRes, enrollRes, eventsRes] = await Promise.all([
+        client
+          .from('courses')
+          .select('*')
+          .order('created_at', { ascending: true }),
+        client.from('course_enrollments').select('*'),
+        client
+          .from('academic_events')
+          .select('*')
+          .order('due_at', { ascending: true }),
+      ]);
+
+      if (coursesRes.data && coursesRes.data.length > 0) {
+        setCourses(coursesRes.data as Course[]);
+      }
+      if (enrollRes.data && enrollRes.data.length > 0) {
+        setEnrollments(enrollRes.data as CourseEnrollment[]);
+      }
+      if (eventsRes.data && eventsRes.data.length > 0) {
+        setEvents(eventsRes.data as AcademicEvent[]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch public Supabase data:', err);
+    }
+
+    // 2. Check if a user is currently logged in
     const { data: authData } = await client.auth.getUser();
     const user = authData?.user;
     if (!user) {
@@ -370,17 +398,9 @@ export default function PMBAHubPage() {
       fullName: (user.user_metadata?.full_name as string) || '',
     });
 
-    const [coursesRes, enrollRes, eventsRes, progRes, notesRes] =
-      await Promise.all([
-        client
-          .from('courses')
-          .select('*')
-          .order('created_at', { ascending: true }),
-        client.from('course_enrollments').select('*'),
-        client
-          .from('academic_events')
-          .select('*')
-          .order('due_at', { ascending: true }),
+    // 3. Fetch user's private progress and notes
+    try {
+      const [progRes, notesRes] = await Promise.all([
         client
           .from('user_event_progress')
           .select('*')
@@ -392,20 +412,14 @@ export default function PMBAHubPage() {
           .order('updated_at', { ascending: false }),
       ]);
 
-    if (coursesRes.data && coursesRes.data.length > 0) {
-      setCourses(coursesRes.data as Course[]);
-    }
-    if (enrollRes.data) {
-      setEnrollments(enrollRes.data as CourseEnrollment[]);
-    }
-    if (eventsRes.data && eventsRes.data.length > 0) {
-      setEvents(eventsRes.data as AcademicEvent[]);
-    }
-    if (progRes.data) {
-      setProgressList(progRes.data as UserEventProgress[]);
-    }
-    if (notesRes.data) {
-      setNotes(notesRes.data as PersonalNote[]);
+      if (progRes.data) {
+        setProgressList(progRes.data as UserEventProgress[]);
+      }
+      if (notesRes.data) {
+        setNotes(notesRes.data as PersonalNote[]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch private user data:', err);
     }
   }, []);
 
@@ -928,35 +942,31 @@ export default function PMBAHubPage() {
     }
 
     const client = getSupabaseClient();
-    if (client && supabaseUser) {
-      const { data: inserted } = await client
+    if (client) {
+      await client
         .from('courses')
-        .insert({
+        .upsert({
+          id: newCourse.id,
           name: courseData.name,
           code: courseData.code,
           course_type: courseData.type,
           professor: courseData.professor,
+          term_info: courseData.term_info || '',
           color: courseData.color,
           is_shared: courseData.is_shared,
-          owner_id: supabaseUser.id,
-        })
-        .select()
-        .single();
-      if (inserted) {
-        setCourses((prev) =>
-          prev.map((c) => (c.id === newCourse.id ? (inserted as Course) : c))
-        );
-        if (courseData.type === 'elective') {
-          await client.from('course_enrollments').insert({
-            user_id: supabaseUser.id,
-            course_id: inserted.id,
-          });
-        }
+          owner_id: supabaseUser?.id || currentUser.id,
+        });
+
+      if (courseData.type === 'elective' && supabaseUser) {
+        await client.from('course_enrollments').upsert({
+          user_id: supabaseUser.id,
+          course_id: newCourse.id,
+        });
       }
     }
   };
 
-  const handleConfirmImportSchedule = (
+  const handleConfirmImportSchedule = async (
     importedCourses: Course[],
     importedEvents: AcademicEvent[]
   ) => {
@@ -989,13 +999,45 @@ export default function PMBAHubPage() {
       });
       return [...prev, ...newEnrolls];
     });
+
+    // Upsert to Supabase
+    const client = getSupabaseClient();
+    if (client) {
+      const coursePayload = importedCourses.map((c) => ({
+        id: c.id,
+        name: c.name,
+        code: c.code,
+        course_type: c.type,
+        professor: c.professor,
+        term_info: c.term_info || '',
+        color: c.color,
+        is_shared: true,
+        owner_id: supabaseUser?.id || currentUser.id,
+      }));
+      await client.from('courses').upsert(coursePayload);
+
+      const eventPayload = importedEvents.map((e) => ({
+        id: e.id,
+        course_id: e.course_id,
+        title: e.title,
+        category: e.category,
+        due_at: e.due_at,
+        location: e.location || '',
+        description: e.description || '',
+        is_shared: true,
+        is_pinned_countdown: e.is_pinned_countdown ?? true,
+        owner_id: supabaseUser?.id || currentUser.id,
+        owner_name: currentUser.name,
+      }));
+      await client.from('academic_events').upsert(eventPayload);
+    }
   };
 
   const handleDeleteCourse = async (courseId: string) => {
     setCourses((prev) => prev.filter((c) => c.id !== courseId));
     setEnrollments((prev) => prev.filter((e) => e.course_id !== courseId));
     const client = getSupabaseClient();
-    if (client && supabaseUser) {
+    if (client) {
       await client.from('courses').delete().eq('id', courseId);
     }
   };
@@ -1005,18 +1047,63 @@ export default function PMBAHubPage() {
       prev.map((c) => (c.id === updatedCourse.id ? updatedCourse : c))
     );
     const client = getSupabaseClient();
-    if (client && supabaseUser) {
+    if (client) {
       await client
         .from('courses')
-        .update({
+        .upsert({
+          id: updatedCourse.id,
           name: updatedCourse.name,
           code: updatedCourse.code,
           course_type: updatedCourse.type,
           professor: updatedCourse.professor,
+          term_info: updatedCourse.term_info || '',
           color: updatedCourse.color,
           is_shared: updatedCourse.is_shared,
-        })
-        .eq('id', updatedCourse.id);
+          owner_id: updatedCourse.owner_id || supabaseUser?.id || currentUser.id,
+        });
+    }
+  };
+
+  // Full manual sync of all local courses & events to Supabase cloud
+  const handleSyncAllToCloud = async () => {
+    const client = getSupabaseClient();
+    if (!client) {
+      alert('請先在右上角確認 Supabase 連線設定！');
+      return;
+    }
+    try {
+      const coursePayload = courses.map((c) => ({
+        id: c.id,
+        name: c.name,
+        code: c.code,
+        course_type: c.type,
+        professor: c.professor,
+        term_info: c.term_info || '',
+        color: c.color,
+        is_shared: c.is_shared ?? true,
+        owner_id: c.owner_id || supabaseUser?.id || currentUser.id,
+      }));
+      await client.from('courses').upsert(coursePayload);
+
+      const eventPayload = events.map((e) => ({
+        id: e.id,
+        course_id: e.course_id,
+        title: e.title,
+        category: e.category,
+        due_at: e.due_at,
+        location: e.location || '',
+        description: e.description || '',
+        is_shared: e.is_shared ?? true,
+        is_pinned_countdown: e.is_pinned_countdown ?? true,
+        owner_id: e.owner_id || supabaseUser?.id || currentUser.id,
+        owner_name: e.owner_name || currentUser.name,
+      }));
+      await client.from('academic_events').upsert(eventPayload);
+
+      alert('✅ 已將目前畫面上的所有課程與行程完整發布至 Supabase 雲端！\n現在用無痕視窗、手機或給同學看，都能即時看到最新課表了！');
+      syncWithSupabase();
+    } catch (err) {
+      alert('同步至雲端失敗：' + (err instanceof Error ? err.message : String(err)));
     }
   };
 
@@ -1539,6 +1626,7 @@ export default function PMBAHubPage() {
               openNewEventModal({ courseId: cId })
             }
             onOpenImportModal={() => setIsImportModalOpen(true)}
+            onSyncAllToCloud={handleSyncAllToCloud}
           />
         )}
       </main>

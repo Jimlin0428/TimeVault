@@ -15,6 +15,7 @@ import {
   Check,
   CheckCircle2,
   Clock,
+  Cloud,
   Download,
   Edit3,
   ExternalLink,
@@ -49,6 +50,7 @@ interface CourseManagerProps {
   onDeleteCourse: (courseId: string) => void;
   onOpenNewEventForCourse: (courseId: string) => void;
   onOpenImportModal: () => void;
+  onSyncAllToCloud?: () => void;
 }
 
 const COLOR_OPTIONS: { value: CourseColor; label: string; dot: string }[] = [
@@ -73,6 +75,7 @@ export default function CourseManager({
   onDeleteCourse,
   onOpenNewEventForCourse,
   onOpenImportModal,
+  onSyncAllToCloud,
 }: CourseManagerProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
@@ -150,6 +153,17 @@ export default function CourseManager({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {onSyncAllToCloud && (
+            <button
+              onClick={onSyncAllToCloud}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold shadow-sm transition"
+              title="將目前所有課程與時程發布至雲端資料庫，讓全班及其他裝置即刻同步"
+            >
+              <Cloud className="w-4 h-4" />
+              同步發布至全班雲端
+            </button>
+          )}
+
           <button
             onClick={onOpenImportModal}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs sm:text-sm font-bold shadow-sm transition"
