@@ -132,6 +132,30 @@ export default function CloudSyncModal({
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!authEmail.trim()) {
+      setAuthStatusMsg('⚠️ 請先在上方輸入您的 Email，再點擊「忘記密碼」！');
+      return;
+    }
+    const client = getSupabaseClient();
+    if (!client) return;
+    setAuthStatusMsg('正在向雲端發送重設密碼信件...');
+    try {
+      const origin =
+        typeof window !== 'undefined'
+          ? window.location.origin
+          : 'https://time-vault-wine-phi.vercel.app';
+      const { error } = await client.auth.resetPasswordForEmail(authEmail.trim(), {
+        redirectTo: origin,
+      });
+      if (error) throw error;
+      setAuthStatusMsg('📩 密碼重設連結已寄出！請至信箱收信並依指示重設密碼。');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '重設失敗，請檢查信箱';
+      setAuthStatusMsg(`❌ ${message}`);
+    }
+  };
+
   const handleSignOut = async () => {
     const client = getSupabaseClient();
     if (client) {
@@ -436,9 +460,20 @@ export default function CloudSyncModal({
                   </div>
                   {authMode !== 'magic' && (
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">
-                        密碼 (至少 6 碼)
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-semibold text-slate-600">
+                          密碼 (至少 6 碼)
+                        </label>
+                        {authMode === 'signin' && (
+                          <button
+                            type="button"
+                            onClick={handleResetPassword}
+                            className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold hover:underline"
+                          >
+                            忘記密碼？
+                          </button>
+                        )}
+                      </div>
                       <input
                         type="password"
                         required
