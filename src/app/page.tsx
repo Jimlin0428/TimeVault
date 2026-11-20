@@ -103,6 +103,7 @@ export default function PMBAHubPage() {
   const [adminEmails, setAdminEmails] = useState<string[]>([
     'alex.chen@university.edu.tw',
     'jim.pmba@university.edu.tw',
+    'jim.lin.pmp@gmail.com',
   ]);
   const [adminPinCode, setAdminPinCode] = useState<string>('pmba2026');
   const [filterOnlyMyCourses, setFilterOnlyMyCourses] = useState<boolean>(true);
@@ -410,6 +411,40 @@ export default function PMBAHubPage() {
 
   useEffect(() => {
     syncWithSupabase();
+
+    const client = getSupabaseClient();
+    if (!client) return;
+
+    const {
+      data: { subscription },
+    } = client.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        setSupabaseUser({
+          id: session.user.id,
+          email: session.user.email || 'user@pmba',
+          fullName: (session.user.user_metadata?.full_name as string) || '',
+        });
+        syncWithSupabase();
+
+        // Clean up hash fragment from URL if redirected from email confirmation
+        if (
+          typeof window !== 'undefined' &&
+          window.location.hash.includes('access_token')
+        ) {
+          window.history.replaceState(
+            null,
+            '',
+            window.location.pathname + window.location.search
+          );
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setSupabaseUser(null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [syncWithSupabase]);
 
   // Fast map lookup for courses
