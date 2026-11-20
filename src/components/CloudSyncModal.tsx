@@ -15,6 +15,7 @@ import {
   KeyRound,
   LogIn,
   LogOut,
+  Settings2,
   Share2,
   ShieldCheck,
   Smartphone,
@@ -37,6 +38,7 @@ export default function CloudSyncModal({
 }: CloudSyncModalProps) {
   const currentConfig = getSupabaseConfig();
   const [activeTab, setActiveTab] = useState<'share' | 'cloud' | 'sql'>('share');
+  const [showAdvancedConfig, setShowAdvancedConfig] = useState(!currentConfig.isConfigured);
   const [urlInput, setUrlInput] = useState(currentConfig.url);
   const [anonKeyInput, setAnonKeyInput] = useState(currentConfig.anonKey);
   const [authEmail, setAuthEmail] = useState('');
@@ -165,7 +167,7 @@ export default function CloudSyncModal({
             }`}
           >
             <KeyRound className="w-4 h-4" />
-            2. Supabase 雲端連線與登入
+            2. 學員雲端帳號登入 / 同步
           </button>
           <button
             onClick={() => setActiveTab('sql')}
@@ -241,63 +243,104 @@ export default function CloudSyncModal({
 
           {activeTab === 'cloud' && (
             <div className="space-y-5">
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                    Supabase 雲端資料庫連線設定
-                  </span>
-                  <span
-                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                      currentConfig.isConfigured
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-amber-100 text-amber-800'
-                    }`}
+              {/* Database Connection Reassurance Card */}
+              {currentConfig.isConfigured && !showAdvancedConfig ? (
+                <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-emerald-950 flex items-center gap-2">
+                        雲端資料庫已就緒連線
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-200/70 text-emerald-800">
+                          {currentConfig.source === 'env' ? '環境變數自動載入' : '已儲存'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-emerald-700 mt-0.5">
+                        全班公版行事曆自動同步；個人打卡進度與備忘筆記由 PostgreSQL RLS 加密隔離保護。
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvancedConfig(true)}
+                    className="inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-800 font-semibold px-2.5 py-1 rounded-lg hover:bg-emerald-100/50 transition shrink-0 ml-2"
                   >
-                    {currentConfig.isConfigured
-                      ? `已設定 (${currentConfig.source === 'env' ? '環境變數' : '瀏覽器儲存'})`
-                      : '目前為本機展示模式'}
-                  </span>
+                    <Settings2 className="w-3.5 h-3.5" />
+                    進階設定
+                  </button>
                 </div>
-
-                <form onSubmit={handleSaveSupabaseKeys} className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">
-                      NEXT_PUBLIC_SUPABASE_URL
-                    </label>
-                    <input
-                      type="url"
-                      value={urlInput}
-                      onChange={(e) => setUrlInput(e.target.value)}
-                      placeholder="https://xxxxxxxxxxxx.supabase.co"
-                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">
-                      NEXT_PUBLIC_SUPABASE_ANON_KEY
-                    </label>
-                    <input
-                      type="password"
-                      value={anonKeyInput}
-                      onChange={(e) => setAnonKeyInput(e.target.value)}
-                      placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="text-[11px] text-slate-500">
-                      部署至 Vercel 時，建議將這兩個變數填在 Vercel Project Settings → Environment Variables。
+              ) : (
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                      Supabase 雲端資料庫連線設定 (工程模式)
                     </span>
-                    <button
-                      type="submit"
-                      className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold"
-                    >
-                      儲存連線金鑰
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                          currentConfig.isConfigured
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {currentConfig.isConfigured
+                          ? `已設定 (${currentConfig.source === 'env' ? '環境變數' : '瀏覽器儲存'})`
+                          : '目前為本機展示模式'}
+                      </span>
+                      {currentConfig.isConfigured && (
+                        <button
+                          type="button"
+                          onClick={() => setShowAdvancedConfig(false)}
+                          className="text-[11px] text-slate-500 hover:text-slate-700 underline"
+                        >
+                          收合 ▲
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </form>
-              </div>
+
+                  <form onSubmit={handleSaveSupabaseKeys} className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">
+                        NEXT_PUBLIC_SUPABASE_URL (公開 Project URL)
+                      </label>
+                      <input
+                        type="url"
+                        value={urlInput}
+                        onChange={(e) => setUrlInput(e.target.value)}
+                        placeholder="https://xxxxxxxxxxxx.supabase.co"
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">
+                        NEXT_PUBLIC_SUPABASE_ANON_KEY (公開 Publishable / Anon Key)
+                      </label>
+                      <input
+                        type="password"
+                        value={anonKeyInput}
+                        onChange={(e) => setAnonKeyInput(e.target.value)}
+                        placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[11px] text-slate-500">
+                        此處填寫公開金鑰，真正的安全防護由 Supabase RLS 把關。最高權限 Secret Key 勿填於此。
+                      </span>
+                      <button
+                        type="submit"
+                        className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold"
+                      >
+                        儲存連線金鑰
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
 
               {/* Supabase Auth Login Box */}
               <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-4">
