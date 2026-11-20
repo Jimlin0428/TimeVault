@@ -69,6 +69,75 @@ const LS_GROUP_LOCKED = 'pmba_hub_group_locked_v1';
 const LS_ADMIN_EMAILS = 'pmba_hub_admin_emails_v1';
 const LS_ADMIN_PIN = 'pmba_hub_admin_pin_v1';
 
+const EVENT_META_REGEX = /\n?\[\[PMBA_META:(\{.*?\})\]\]$/;
+
+function encodeEventDescriptionWithMeta(evt: {
+  description?: string;
+  visibility?: EventVisibility;
+  group_name?: string | null;
+  group_passcode?: string | null;
+  is_shared?: boolean;
+}): string {
+  const cleanDesc = (evt.description || '')
+    .replace(EVENT_META_REGEX, '')
+    .trimEnd();
+  const vis: EventVisibility =
+    evt.visibility ||
+    (evt.is_shared ? (evt.group_name ? 'group' : 'public') : 'private');
+  if (vis === 'public' && !evt.group_name && !evt.group_passcode) {
+    return cleanDesc;
+  }
+  const meta: Record<string, string> = { v: vis };
+  if (evt.group_name) meta.g = evt.group_name;
+  if (evt.group_passcode) meta.p = evt.group_passcode;
+  const tag = `[[PMBA_META:${JSON.stringify(meta)}]]`;
+  return cleanDesc ? `${cleanDesc}\n${tag}` : tag;
+}
+
+function decodeEventFromDb(row: Record<string, unknown>): AcademicEvent {
+  const rawDesc = String(row.description || '');
+  let cleanDesc = rawDesc;
+  let parsedMeta: { v?: EventVisibility; g?: string; p?: string } = {};
+
+  const match = rawDesc.match(EVENT_META_REGEX);
+  if (match) {
+    try {
+      parsedMeta = JSON.parse(match[1]);
+      cleanDesc = rawDesc.replace(EVENT_META_REGEX, '').trimEnd();
+    } catch {
+      // ignore malformed meta
+    }
+  }
+
+  const isShared = Boolean(row.is_shared ?? true);
+  const groupName =
+    (row.group_name as string | null | undefined) ?? parsedMeta.g ?? null;
+  const groupPasscode =
+    (row.group_passcode as string | null | undefined) ?? parsedMeta.p ?? null;
+  const visibility: EventVisibility =
+    (row.visibility as EventVisibility | undefined) ||
+    parsedMeta.v ||
+    (isShared ? (groupName ? 'group' : 'public') : 'private');
+
+  return {
+    id: String(row.id),
+    course_id: String(row.course_id || ''),
+    title: String(row.title || ''),
+    category: (row.category || 'class') as EventCategory,
+    due_at: String(row.due_at || ''),
+    location: String(row.location || ''),
+    description: cleanDesc,
+    is_shared: visibility !== 'private',
+    visibility,
+    group_name: groupName,
+    group_passcode: groupPasscode,
+    is_pinned_countdown: Boolean(row.is_pinned_countdown ?? false),
+    owner_id: String(row.owner_id || ''),
+    owner_name: String(row.owner_name || 'PMBA 同學'),
+    created_at: row.created_at ? String(row.created_at) : undefined,
+  };
+}
+
 export default function PMBAHubPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('countdown');
   const [demoUserIndex, setDemoUserIndex] = useState<number>(0);
@@ -408,7 +477,11 @@ export default function PMBAHubPage() {
         setEnrollments(enrollRes.data as CourseEnrollment[]);
       }
       if (eventsRes.data && eventsRes.data.length > 0) {
-        setEvents(eventsRes.data as AcademicEvent[]);
+        setEvents(
+          eventsRes.data.map((row) =>
+            decodeEventFromDb(row as Record<string, unknown>)
+          )
+        );
       } else if (coursesRes.data && coursesRes.data.length > 0) {
         // Real cloud courses exist, clear the outdated local mock events
         setEvents([]);
@@ -788,18 +861,31 @@ export default function PMBAHubPage() {
 
     const client = getSupabaseClient();
     if (client && supabaseUser) {
+      const validCourseIds = new Set(courses.map((c) => c.id));
       const { data: inserted } = await client
         .from('academic_events')
-        .insert({
-          ...data,
+        .upsert({
+          id: newEvt.id,
+          course_id:
+            data.course_id && validCourseIds.has(data.course_id)
+              ? data.course_id
+              : null,
+          title: data.title,
+          category: data.category,
+          due_at: data.due_at,
+          location: data.location || '',
+          description: encodeEventDescriptionWithMeta(data),
+          is_shared: data.visibility !== 'private',
+          is_pinned_countdown: data.is_pinned_countdown ?? false,
           owner_id: supabaseUser.id,
           owner_name: currentUser.name,
         })
         .select()
         .single();
       if (inserted) {
+        const decoded = decodeEventFromDb(inserted as Record<string, unknown>);
         setEvents((prev) =>
-          prev.map((e) => (e.id === newEvt.id ? (inserted as AcademicEvent) : e))
+          prev.map((e) => (e.id === newEvt.id ? decoded : e))
         );
       }
     }
@@ -839,19 +925,22 @@ export default function PMBAHubPage() {
     );
     const client = getSupabaseClient();
     if (client && supabaseUser) {
+      const validCourseIds = new Set(courses.map((c) => c.id));
       await client
         .from('academic_events')
         .update({
-          course_id: updatedEvt.course_id,
+          course_id:
+            updatedEvt.course_id && validCourseIds.has(updatedEvt.course_id)
+              ? updatedEvt.course_id
+              : null,
           title: updatedEvt.title,
           category: updatedEvt.category,
           due_at: updatedEvt.due_at,
-          location: updatedEvt.location,
-          description: updatedEvt.description,
-          is_shared: updatedEvt.is_shared,
-          visibility: updatedEvt.visibility,
-          group_name: updatedEvt.group_name,
-          group_passcode: updatedEvt.group_passcode,
+          location: updatedEvt.location || '',
+          description: encodeEventDescriptionWithMeta(updatedEvt),
+          is_shared: updatedEvt.visibility
+            ? updatedEvt.visibility !== 'private'
+            : updatedEvt.is_shared,
           is_pinned_countdown: updatedEvt.is_pinned_countdown,
         })
         .eq('id', updatedEvt.id);
@@ -1181,8 +1270,8 @@ export default function PMBAHubPage() {
           category: e.category,
           due_at: e.due_at,
           location: e.location || '',
-          description: e.description || '',
-          is_shared: e.is_shared ?? true,
+          description: encodeEventDescriptionWithMeta(e),
+          is_shared: e.visibility ? e.visibility !== 'private' : (e.is_shared ?? true),
           is_pinned_countdown: e.is_pinned_countdown ?? false,
           owner_id: e.owner_id || supabaseUser?.id || currentUser.id,
           owner_name: e.owner_name || currentUser.name,
